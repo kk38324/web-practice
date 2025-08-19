@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户分页列表 (调用真实后端API)</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <style>
+        .pagination-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .pagination-info {
+            margin: 15px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .page-item.active .page-link {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        
+        .table-container {
+            margin: 20px 0;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .table-container {
+                overflow-x: auto;
+            }
+            
+            .pagination-container {
+                flex-wrap: wrap;
+            }
+            
+            .pagination-info {
+                font-size: 12px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .container {
+                padding: 0 10px;
+            }
+            
+            .table th, .table td {
+                padding: 0.5rem;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2 class="mb-4">用户管理 (真实API)</h2>
+        
+        <!-- 数据表格 -->
+        <div class="table-container">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>密码</th>
+                        <th>出生日期</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr><td colspan="4" class="text-center">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 分页信息 -->
+        <div class="pagination-info" id="paginationInfo">
+            正在加载...
+        </div>
+        
+        <!-- 分页控件 -->
+        <nav class="pagination-container">
+            <ul class="pagination justify-content-center" id="pagination">
+                <!-- 分页按钮将通过JavaScript动态生成 -->
+            </ul>
+        </nav>
+
+        <!-- 跳转输入框 -->
+        <div class="d-flex justify-content-center align-items-center mt-3">
+            <div class="input-group w-auto">
+                <input type="number" id="pageInput" class="form-control" 
+                       placeholder="跳转页码" min="1" 
+                       style="width: 80px; text-align: center;">
+                <button class="btn btn-outline-primary" type="button" 
+                        onclick="goToPage()">跳转</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- 配置部分 ---
+        // 请将下面的 URL 替换为你实际的后端服务地址和端口
+        const BASE_URL = 'http://localhost:8080'; 
+        const API_ENDPOINT = '/user/findByPage';
+        // -----------------
+
+        // 分页配置 (从API响应中更新)
+        const paginationConfig = {
+            currentPage: 1,
+            pageSize: 2, // 默认每页大小，可以在 loadUsers 中修改
+            total: 0,
+            totalPages: 0
+        };
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsers(1); // 初始加载第一页
+        });
+
+        // 加载用户数据 (使用真实的 fetch API)
+        async function loadUsers(page) {
+            try {
+                // 显示加载状态
+                document.getElementById('userTableBody').innerHTML = '<tr><td colspan="4" class="text-center">加载中...</td></tr>';
+                document.getElementById('paginationInfo').textContent = '正在加载...';
+                
+                // 构建请求 URL
+                const url = `${BASE_URL}${API_ENDPOINT}?page=${page}&size=${paginationConfig.pageSize}`;
+                console.log("请求URL:", url); // 调试用
+
+                // 发起 fetch 请求
+                const response = await fetch(url);
+                
+                // 检查响应状态
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // 解析 JSON 数据
+                const data = await response.json();
+                console.log("收到响应数据:", data); // 调试用
+
+                // 更新分页配置 (使用 API 返回的数据)
+                paginationConfig.currentPage = data.current; // 注意：API返回的是 'current'
+                paginationConfig.pageSize = data.size;       // 注意：API返回的是 'size'
+                paginationConfig.total = data.total;         // 注意：API返回的是 'total'
+                paginationConfig.totalPages = data.pages;    // 注意：API返回的是 'pages'
+
+                // 渲染表格数据 (传递 API 返回的 records)
+                renderUserTable(data.records);
+                
+                // 渲染分页信息
+                renderPaginationInfo();
+                
+                // 渲染分页按钮
+                renderPaginationButtons();
+                
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('userTableBody').innerHTML = `<tr><td colspan="4" class="text-center text-danger">加载失败，请检查后端服务或控制台错误信息 (${error.message})</td></tr>`;
+                document.getElementById('paginationInfo').textContent = '加载失败';
+                // 即使失败，也尝试更新分页按钮状态，防止无限加载
+                renderPaginationButtons();
+            }
+        }
+
+        // 渲染用户表格
+        function renderUserTable(users) {
+            const tableBody = document.getElementById('userTableBody');
+            
+            if (!users || users.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">暂无数据</td></tr>';
+                return;
+            }
+            
+            const rows = users.map(user => `
+                <tr>
+                    <td>${user.id || '-'}</td>
+                    <td>${user.username || '-'}</td>
+                    <td>${user.password ? '******' : '-'}</td>
+                    <td>${user.birthday || '-'}</td>
+                </tr>
+            `).join('');
+            
+            tableBody.innerHTML = rows;
+        }
+
+        // 渲染分页信息
+        function renderPaginationInfo() {
+            const infoElement = document.getElementById('paginationInfo');
+            const total = paginationConfig.total;
+            const current = paginationConfig.currentPage;
+            const size = paginationConfig.pageSize;
+
+            if (total === 0) {
+                infoElement.textContent = '共 0 条数据';
+                return;
+            }
+            const start = (current - 1) * size + 1;
+            const end = Math.min(current * size, total);
+            infoElement.innerHTML = `显示 ${start}-${end} 条，共 ${total} 条数据`;
+        }
+
+        // 渲染分页按钮
+        function renderPaginationButtons() {
+            const paginationElement = document.getElementById('pagination');
+            const totalPages = paginationConfig.totalPages;
+            const current = paginationConfig.currentPage;
+
+            paginationElement.innerHTML = ''; // 清空现有按钮
+            if (totalPages <= 1) return; // 如果只有一页，则不显示分页按钮
+
+            let buttons = '';
+            
+            // 上一页按钮
+            if (current > 1) {
+                buttons += `<li class="page-item"><a class="page-link" href="javascript:loadUsers(${current - 1})">上一页</a></li>`;
+            } else {
+                buttons += `<li class="page-item disabled"><span class="page-link">上一页</span></li>`;
+            }
+            
+            // 页码按钮（最多显示5个页码）
+            const maxButtons = 5;
+            let startPage = Math.max(1, current - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+            
+            if (endPage - startPage + 1 < maxButtons && endPage < totalPages) {
+                startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+            
+            if (startPage > 1) {
+                buttons += `<li class="page-item"><a class="page-link" href="javascript:loadUsers(1)">1</a></li>`;
+                if (startPage > 2) {
+                    buttons += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                if (i === current) {
+                    buttons += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                } else {
+                    buttons += `<li class="page-item"><a class="page-link" href="javascript:loadUsers(${i})">${i}</a></li>`;
+                }
+            }
+            
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    buttons += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+                buttons += `<li class="page-item"><a class="page-link" href="javascript:loadUsers(${totalPages})">${totalPages}</a></li>`;
+            }
+            
+            // 下一页按钮
+            if (current < totalPages) {
+                buttons += `<li class="page-item"><a class="page-link" href="javascript:loadUsers(${current + 1})">下一页</a></li>`;
+            } else {
+                buttons += `<li class="page-item disabled"><span class="page-link">下一页</span></li>`;
+            }
+            
+            paginationElement.innerHTML = buttons;
+        }
+
+        // 跳转到指定页码
+        function goToPage() {
+            const pageInput = document.getElementById('pageInput');
+            const page = parseInt(pageInput.value);
+            
+            if (page >= 1 && page <= paginationConfig.totalPages) {
+                loadUsers(page);
+                pageInput.value = '';
+            } else {
+                alert(`请输入 1-${paginationConfig.totalPages} 之间的页码`);
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
