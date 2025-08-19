@@ -110,7 +110,7 @@
     <script>
         // --- 配置部分 ---
         // 请将下面的 URL 替换为你实际的后端服务地址和端口
-        const BASE_URL = 'http://localhost:8080'; 
+        const BASE_URL = 'http://10.13.8.112:8080'; 
         const API_ENDPOINT = '/user/findByPage';
         // -----------------
 
@@ -277,14 +277,11 @@
             
             if (page >= 1 && page <= paginationConfig.totalPages) {
                 loadUsers(page);
-                pageInput.value = '';
+                pageInput.value = ''; // 清空输入框
             } else {
-                alert(`请输入 1-${paginationConfig.totalPages} 之间的页码`);
+                alert(`请输入 1 到 ${paginationConfig.totalPages} 之间的页码`);
             }
         }
     </script>
 </body>
 </html>
-
-
-
